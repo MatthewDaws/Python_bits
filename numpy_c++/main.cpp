@@ -16,18 +16,12 @@ using std::endl;
 template <typename T>
 void do_test(std::string filename, const char *format)
 {
-	std::ifstream file;
-	file.open(filename, std::ios::binary);
+	cout << "Trying filename: " << filename << endl;
 	try {
-		Load_npy npy(file);
-		cout << npy.info() << endl;
-		if ( npy.check_format(format) and npy.dimensions()==2 and npy.get_shape()[1]==2 ) {
-			struct point { T x,y; };
-			std::vector<point> buffer(npy.get_shape()[0]);
-			npy.read(file, &buffer[0]);
-			for (auto row : buffer) {
-				cout << row.x << ", " << row.y << endl;
-			}
+		struct point { T x,y; };
+		auto buffer = load_numpy_structured_rows<point>(filename, 2, format);
+		for (auto row : buffer) {
+			cout << row.x << ", " << row.y << endl;
 		}
 	}
 	catch ( const std::exception& e )

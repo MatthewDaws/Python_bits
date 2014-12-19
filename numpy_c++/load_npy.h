@@ -25,7 +25,7 @@
 #ifndef __load_npy_header
 #define __load_npy_header
 
-#include <iosfwd>
+#include <fstream>
 #include <string>
 #include <vector>
 #include <stdexcept>
@@ -39,8 +39,12 @@ public:
 	};
 	enum class Order { C, Fortran, Other };
 
-	Load_npy(std::istream &input);
+	Load_npy(std::istream &input) { init(input); }
+	Load_npy(std::string filename);
 	void read(std::istream &input, void *buf)const;
+	void readrow(std::istream &input, void *row)const;
+	void read(void *buf) { read(static_cast<std::istream&>(ifile), buf); }
+	void readrow(void *row) { readrow(static_cast<std::istream&>(ifile), row); }
 	std::string info()const;
 	/** Return a const std::vector showing the shape of the array */
 	const std::vector<int>& get_shape()const { return shape; }
@@ -52,6 +56,8 @@ public:
 	int bytes_per_entry()const { return bytes; }
 	bool check_format(std::string format)const;
 private:
+	void init(std::istream &input);
+private:
 	std::string header;
 	std::string dtype;
 	Order ordering;
@@ -59,8 +65,19 @@ private:
 	bool little_endian;
 	bool integer;
 	int bytes;
+	std::ifstream ifile;
 };
 
-
+template<typename strT>
+std::vector<strT> load_numpy_structured_rows(std::string filename, int row_width, const char* format)
+{
+	Load_npy npy(filename);
+	std::vector<strT> buffer;
+	if ( npy.check_format(format) and npy.dimensions()==2 and npy.get_shape()[1]==row_width ) {
+		buffer.resize(npy.get_shape()[0]);
+		npy.read(&buffer[0]);
+	}
+	return buffer;
+}
 
 #endif // __load_npy_header

@@ -146,7 +146,7 @@ std::vector<int> Load_npy_Header::get_shape()const
  *  and provides an entry for what()
  *  Any I/O exceptions are rethrown to be caught by client.
  */
-Load_npy::Load_npy(std::istream &input)
+void Load_npy::init(std::istream &input)
 {
 	auto oldexc = input.exceptions();
 	input.exceptions(std::ios::badbit | std::ios::eofbit | std::ios::failbit);
@@ -213,6 +213,14 @@ Load_npy::Load_npy(std::istream &input)
 	}
 }
 
+/** Variant with filename support */
+Load_npy::Load_npy(std::string filename)
+{
+	ifile.open(filename, std::ios::binary);
+	init(static_cast<std::istream&>(ifile));
+}
+
+
 /** Pretty print information about the header */
 std::string Load_npy::info()const
 {
@@ -241,3 +249,12 @@ void Load_npy::read(std::istream &input, void *buf)const
 	input.read(reinterpret_cast<char*>(buf), toread);
 }
 
+/** Read a single "row" of the data.
+ *  Here row means a (dimensions - 1) slice.
+ */
+void Load_npy::readrow(std::istream &input, void *row)const
+{
+	std::size_t toread = bytes;
+	for (int i = 1; i < shape.size(); ++i) { toread *= shape[i]; }
+	input.read(reinterpret_cast<char*>(row), toread);
+}
