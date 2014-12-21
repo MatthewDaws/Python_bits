@@ -211,6 +211,7 @@ void Load_npy::init(std::istream &input)
 		input.exceptions(oldexc);
 		throw;
 	}
+	input.exceptions(oldexc);
 }
 
 /** Variant with filename support */
