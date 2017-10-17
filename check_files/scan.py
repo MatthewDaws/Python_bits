@@ -162,16 +162,24 @@ class Setting():
         self._logger.error("No two states agree.")
         raise Exception("Not enough good state files.")
 
-
-def normalise(filename, basedir):
-    assert filename.startswith(basedir)
-    filename = filename[len(basedir)+1:]
-    out = []
+def split_full(filename):
     while len(filename) > 0:
         head, tail = os.path.split(filename)
-        out.insert(0, tail)
+        if filename == head:
+            yield head
+            return
+        yield tail
         filename = head
-    return out
+
+def normalise(filename, basedir):
+    filename = list(split_full(filename))
+    basedir = list(split_full(basedir))
+    while len(basedir) > 0:
+        assert filename[-1] == basedir[-1]
+        filename.pop()
+        basedir.pop()
+    filename.reverse()
+    return filename
 
 def run(basedir):
     basedir = os.path.normcase(os.path.normpath(basedir))
