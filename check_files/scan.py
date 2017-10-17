@@ -3,6 +3,7 @@ import os
 import json
 import logging
 import sys
+import gzip
 
 def hash_file(filename):
     with open(filename, "rb") as file:
@@ -17,7 +18,7 @@ def hash_file(filename):
 class Scan():
     def __init__(self, basedir, logger):
         self._logger = logger
-        self._base = basedir
+        self._base = basedir        
         self._scan()
         
     def _scan(self):
@@ -48,7 +49,7 @@ class Scan():
         return filenames, hashes
 
     def diff(self, old_files):
-        old_files = set(old_files)
+        old_files = set(os.path.join(self._base, *x) for x in old_files)
         new_files = set(self._all_files)
         self._logger.info("Differences in files:")
         for x in old_files:
@@ -69,7 +70,7 @@ class StatePersist():
         data = {"files" : self._files,
                 "hashes" : self._hashes,
                 }
-        return json.dumps(data)
+        return json.dumps(data, indent=2)
     
     @staticmethod
     def from_json_string(data):
@@ -82,7 +83,7 @@ class StatePersist():
         return state
     
     def __eq__(self, other):
-        return set(self.files) == set(other.files)
+        return set(tuple(x) for x in self.files) == set(tuple(x) for x in other.files)
     
     @property
     def files(self):
@@ -127,8 +128,8 @@ class Setting():
         
     def save(self):
         for i in range(3):
-            with open(self._filename(i), "wt", encoding="utf8") as file:
-                file.write( self._state.dump() )
+            with open(self._filename(i), "wb") as file:
+                file.write( gzip.compress(self._state.dump().encode("utf8")) )
         
     @property
     def state(self):
@@ -139,15 +140,16 @@ class Setting():
         self._state = v
         
     def _filename(self, i):
-        filename = "__scan__{}.json".format(i)
-        return os.path.join(self._base, "__scan__" + filename)
+        filename = "__scan__{}.json.gz".format(i)
+        return os.path.join(self._base, filename)
 
     def _reload(self):
         states = []
         for i in range(3):
             try:
-                with open(self._filename(i), "rt", encoding="utf8") as file:
-                    states.append( StatePersist.from_json_string(file.read()) )
+                with open(self._filename(i), "rb") as file:
+                    json_string = gzip.decompress(file.read()).decode("utf8")
+                    states.append( StatePersist.from_json_string(json_string) )
             except:
                 pass
         if len(states) < 2:
@@ -160,7 +162,19 @@ class Setting():
         self._logger.error("No two states agree.")
         raise Exception("Not enough good state files.")
 
+
+def normalise(filename, basedir):
+    assert filename.startswith(basedir)
+    filename = filename[len(basedir)+1:]
+    out = []
+    while len(filename) > 0:
+        head, tail = os.path.split(filename)
+        out.insert(0, tail)
+        filename = head
+    return out
+
 def run(basedir):
+    basedir = os.path.normcase(os.path.normpath(basedir))
     logger = make_logger()
     logger.info("Working with directory '%s'", basedir)
     logger.info("Reloading old settings")
@@ -176,12 +190,13 @@ def run(basedir):
         new_hashes = {f : h for f, h in zip(filenames, hashes)}
         logger.info("Comparing hashes...")
         for filename, old_hash in zip(settings.state.files, settings.state.hashes):
+            filename = os.path.join(basedir, *filename)
             if filename in new_hashes and new_hashes[filename] != old_hash:
                 logger.error("Hash for '%s' has changed", filename)
                 logger.info("Was %s", old_hash)
                 logger.info("Now %s", new_hashes[filename])
     state = StatePersist()
-    state.files = filenames
+    state.files = [normalise(f, basedir) for f in filenames]
     state.hashes = hashes
     settings.state = state
     settings.save()
